@@ -274,6 +274,16 @@ bool InstructionSelectImpl::selectMachineFunction(MachineFunction &MF) {
     }
   }
 
+  // A debug value can still refer to a generic vreg whose def was erased as
+  // dead earlier without the debug value being salvaged. Nothing selects such
+  // a vreg, so make the debug value undef instead of leaving a generic vreg
+  // behind in selected code.
+  for (unsigned I = 0, E = MRI.getNumVirtRegs(); I != E; ++I) {
+    Register VReg = Register::index2VirtReg(I);
+    if (MRI.def_empty(VReg) && !MRI.getRegClassOrNull(VReg))
+      MRI.markUsesInDebugValueAsUndef(VReg);
+  }
+
 #ifndef NDEBUG
   const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
   // Now that selection is complete, there are no more generic vregs.  Verify
