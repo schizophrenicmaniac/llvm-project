@@ -178,6 +178,9 @@ bool ABIInfo::isPromotableIntegerTypeForABI(QualType Ty) const {
   if (getContext().isPromotableIntegerType(Ty))
     return true;
 
+  if (const auto *OBT = Ty->getAs<OverflowBehaviorType>())
+    Ty = OBT->getUnderlyingType();
+
   if (const auto *EIT = Ty->getAs<BitIntType>())
     if (EIT->getNumBits() < getContext().getTypeSize(getContext().IntTy))
       return true;

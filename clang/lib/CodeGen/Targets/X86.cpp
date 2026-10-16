@@ -337,6 +337,9 @@ bool X86_32ABIInfo::shouldReturnTypeInRegister(QualType Ty,
   if ((IsMCUABI && Size > 64) || (!IsMCUABI && !isRegisterSize(Size)))
    return false;
 
+  if (const auto *OBT = Ty->getAs<OverflowBehaviorType>())
+    Ty = OBT->getUnderlyingType();
+
   if (Ty->isVectorType()) {
     // 64- and 128- bit vectors inside structures are not returned in
     // registers.
@@ -382,6 +385,9 @@ static bool is32Or64BitBasicType(QualType Ty, ASTContext &Context) {
   // Treat complex types as the element type.
   if (const ComplexType *CTy = Ty->getAs<ComplexType>())
     Ty = CTy->getElementType();
+
+  if (const auto *OBT = Ty->getAs<OverflowBehaviorType>())
+    Ty = OBT->getUnderlyingType();
 
   // Check for a type which we know has a simple scalar argument-passing
   // convention without any padding.  (We're specifically looking for 32
@@ -557,7 +563,9 @@ ABIArgInfo X86_32ABIInfo::classifyReturnType(QualType RetTy,
     return getIndirectReturnResult(RetTy, State);
   }
 
-  // Treat an enum type as its underlying type.
+  // Treat overflow behavior and enum types as their underlying type.
+  if (const auto *OBT = RetTy->getAs<OverflowBehaviorType>())
+    RetTy = OBT->getUnderlyingType();
   if (const auto *ED = RetTy->getAsEnumDecl())
     RetTy = ED->getIntegerType();
 
@@ -975,6 +983,8 @@ ABIArgInfo X86_32ABIInfo::classifyArgumentType(QualType Ty, CCState &State,
     return ABIArgInfo::getDirect();
   }
 
+  if (const auto *OBT = Ty->getAs<OverflowBehaviorType>())
+    Ty = OBT->getUnderlyingType();
   if (const auto *ED = Ty->getAsEnumDecl())
     Ty = ED->getIntegerType();
 
@@ -1994,6 +2004,13 @@ void X86_64ABIInfo::classify(QualType Ty, uint64_t OffsetBase, Class &Lo,
 
   Lo = Hi = NoClass;
 
+  // Overflow behavior types are passed like their underlying type.
+  if (const auto *OBT = Ty->getAs<OverflowBehaviorType>()) {
+    classify(OBT->getUnderlyingType(), OffsetBase, Lo, Hi, isNamedArg,
+             IsRegCall);
+    return;
+  }
+
   Class &Current = OffsetBase < 64 ? Lo : Hi;
   Current = Memory;
 
@@ -2377,7 +2394,9 @@ ABIArgInfo X86_64ABIInfo::getIndirectReturnResult(QualType Ty) const {
   // If this is a scalar LLVM value then assume LLVM will pass it in the right
   // place naturally.
   if (!isAggregateTypeForABI(Ty)) {
-    // Treat an enum type as its underlying type.
+    // Treat overflow behavior and enum types as their underlying type.
+    if (const auto *OBT = Ty->getAs<OverflowBehaviorType>())
+      Ty = OBT->getUnderlyingType();
     if (const auto *ED = Ty->getAsEnumDecl())
       Ty = ED->getIntegerType();
 
@@ -2410,6 +2429,10 @@ bool X86_64ABIInfo::IsIllegalVectorType(QualType Ty) const {
 
 ABIArgInfo X86_64ABIInfo::getIndirectResult(QualType Ty,
                                             unsigned freeIntRegs) const {
+  // Treat an overflow behavior type as its underlying type.
+  if (const auto *OBT = Ty->getAs<OverflowBehaviorType>())
+    Ty = OBT->getUnderlyingType();
+
   // If this is a scalar LLVM value then assume LLVM will pass it in the right
   // place naturally.
   //
@@ -3556,6 +3579,9 @@ ABIArgInfo WinX86_64ABIInfo::classify(QualType Ty, unsigned &FreeSSERegs,
 
   if (Ty->isVoidType())
     return ABIArgInfo::getIgnore();
+
+  if (const auto *OBT = Ty->getAs<OverflowBehaviorType>())
+    Ty = OBT->getUnderlyingType();
 
   bool PromoteScopedEnum = false;
   if (const auto *ED = Ty->getAsEnumDecl()) {

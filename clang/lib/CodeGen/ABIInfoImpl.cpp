@@ -27,7 +27,9 @@ ABIArgInfo DefaultABIInfo::classifyArgumentType(QualType Ty) const {
     return getNaturalAlignIndirect(Ty, getDataLayout().getAllocaAddrSpace());
   }
 
-  // Treat an enum type as its underlying type.
+  // Treat overflow behavior and enum types as their underlying type.
+  if (const auto *OBT = Ty->getAs<OverflowBehaviorType>())
+    Ty = OBT->getUnderlyingType();
   if (const auto *ED = Ty->getAsEnumDecl())
     Ty = ED->getIntegerType();
 
@@ -51,7 +53,9 @@ ABIArgInfo DefaultABIInfo::classifyReturnType(QualType RetTy) const {
   if (isAggregateTypeForABI(RetTy))
     return getNaturalAlignIndirect(RetTy, getDataLayout().getAllocaAddrSpace());
 
-  // Treat an enum type as its underlying type.
+  // Treat overflow behavior and enum types as their underlying type.
+  if (const auto *OBT = RetTy->getAs<OverflowBehaviorType>())
+    RetTy = OBT->getUnderlyingType();
   if (const auto *ED = RetTy->getAsEnumDecl())
     RetTy = ED->getIntegerType();
 
